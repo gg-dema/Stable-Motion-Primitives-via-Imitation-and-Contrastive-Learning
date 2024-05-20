@@ -54,3 +54,7 @@ optitrack = ['hammer']
 # Joint space dataset
 joint_space = ['cleaning_1',
                'cleaning_2']
+multi_attractor = ['v0',  # 1 single attractor, done for testing if the dataset was properly loaded
+                   'v1',  # 2 attractors
+                   'v2',  # 3 attractors
+        ]

@@ -1,4 +1,5 @@
 import numpy as np
+from sklearn.cluster import KMeans
 from scipy.interpolate import splprep, splev
 from agent.utils.dynamical_system_operations import normalize_state
 from data_preprocessing.data_loader import load_demonstrations
@@ -24,6 +25,8 @@ class DataPreprocessor:
         self.delta_t = 1  # this value is for learning, so it can be anything
         self.imitation_window_size = params.imitation_window_size  # window size used for imitation cost
         self.verbose = verbose
+
+        self.n_attractor = params.number_of_attractors
 
     def run(self):
         """
@@ -148,18 +151,25 @@ class DataPreprocessor:
         # Iterate through primitives
         goals = []
         for i in np.unique(primitive_ids):
-            ids_primitives = primitive_ids == i
-            demonstrations_primitive_ids = np.array(np.where(ids_primitives))[0]
+            selected_primitives_location = primitive_ids == i
+            demonstrations_primitive_ids = np.array(np.where(selected_primitives_location))[0]
             # Iterate through trajectories of each primitive
             goals_primitive = []
             for j in demonstrations_primitive_ids:
                 goals_primitive.append(np.array(demonstrations_raw[j])[:, -1])
 
-            # Average goals and append
-            goal_mean = np.mean(np.array(goals_primitive), axis=0)
-            goals.append(goal_mean)
+            goal_mean = self.calc_goals_position_via_kmeans(goals_primitive)
+            # extend the goal list
+            goals += goal_mean
 
         return np.array(goals)
+
+    def calc_goals_position_via_kmeans(self, end_points):
+        """
+        Computes goal position using kmeans
+        """
+        kmeans = KMeans(n_clusters=self.n_attractor, random_state=0).fit(end_points)
+        return kmeans.cluster_centers_.tolist()
 
     def generate_training_data(self, loaded_data, features_demos):
         """
@@ -229,7 +239,8 @@ class DataPreprocessor:
             spline_input.append(delta_phases)
 
             # Fit spline
-            spline_parameters, _ = splprep(spline_input, s=0, k=1, u=curve_phases)  # s = 0 -> no smoothing; k = 1 -> linear interpolation
+            spline_parameters, _ = splprep(spline_input, s=0, k=1,
+                                           u=curve_phases)  # s = 0 -> no smoothing; k = 1 -> linear interpolation
 
             # Create initial phases u with spatially equidistant points
             if self.spline_sample_type == 'evenly spaced' or self.spline_sample_type == 'from data resample':

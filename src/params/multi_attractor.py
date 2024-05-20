@@ -4,15 +4,16 @@ from dataclasses import dataclass
 @dataclass
 class Params:
     """ General parameters """
-    dataset_name: str = 'LASA'  # selects dataset, options: LASA, LAIR, optitrack, interpolation, joint_space
-    results_path: str = 'results/1st_order_2D/'
+    dataset_name: str = 'multi_attractor'  # selects dataset, options: LASA, LAIR, optitrack, interpolation, joint_space
+    results_path: str = ('results/multi_attractor_gaussian_2order'
+                         '/')
     multi_motion: bool = False  # true when learning multiple motions together
-    selected_primitives_ids: str = '25'  # id number from dataset_keys.py, e.g., '2' or '4,0,6'
+    selected_primitives_ids: str = '1'  # id number from dataset_keys.py, e.g., '2' or '4,0,6'
     workspace_dimensions: int = 2  # dimensionality of the data
     saturate_out_of_boundaries_transitions: bool = True  # True to enforce positively invariant set
-    dynamical_system_order: int = 1  # options: 1, 2
-    latent_system_dynamic_type: str = 'norm_based'  # options: standard, gaussian, norm_based
-    number_of_attractors: int = 1
+    dynamical_system_order: int = 2  # options: 1, 2
+    latent_system_dynamic_type: str = 'gaussian'  # options: standard, gaussian, norm_based
+    number_of_attractors: int = 3  # number of attractors in the system
 
     """ Latent Dynamical System parameters """
     adaptive_gains: bool = True  # adaptive gains if true
@@ -39,7 +40,7 @@ class Params:
 
     """ Training """
     train: bool = True  # true when training
-    load_model: bool = False  # true to load previously trained model
+    load_model: bool = True  # true to load previously trained model
     max_iterations: int = 41000  # maximum number of training iterations
 
     """ Preprocessing """

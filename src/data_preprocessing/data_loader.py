@@ -1,4 +1,8 @@
-from datasets.dataset_keys import LASA, LAIR, optitrack, interpolation, joint_space
+from datasets.dataset_keys import (
+    LASA, LAIR,
+    optitrack, interpolation,
+    joint_space, multi_attractor
+)
 import os
 import pickle
 import numpy as np
@@ -22,7 +26,8 @@ def load_demonstrations(dataset_name, selected_primitives_ids):
     dataset_path = 'datasets/' + dataset_name + '/'
 
     # Get data loader
-    data_loader = get_data_loader(dataset_name)
+    data_loader = get_data_loader(dataset_name)  # the return type is a function |
+                                                 #                               v
 
     # Load
     demonstrations, demonstrations_primitive_id, delta_t_eval = data_loader(dataset_path, primitives_names)
@@ -49,6 +54,8 @@ def get_dataset_primitives_names(dataset_name):
         dataset_primitives_names = interpolation
     elif dataset_name == 'joint_space':
         dataset_primitives_names = joint_space
+    elif dataset_name == 'multi_attractor':
+        dataset_primitives_names = multi_attractor
     else:
         raise NameError('Dataset %s does not exist' % dataset_name)
 
@@ -73,9 +80,15 @@ def get_data_loader(dataset_name):
     """
     Chooses data loader depending on the data type
     """
+    dataset_in_numpy_format = [
+        'optitrack',
+        'LAIR',
+        'interpolation',
+        'multi_attractor',
+    ]
     if dataset_name == 'LASA':
         data_loader = load_LASA
-    elif dataset_name == 'LAIR' or dataset_name == 'optitrack' or dataset_name == 'interpolation':
+    elif dataset_name in dataset_in_numpy_format:
         data_loader = load_numpy_file
     elif dataset_name == 'joint_space':
         data_loader = load_from_dict

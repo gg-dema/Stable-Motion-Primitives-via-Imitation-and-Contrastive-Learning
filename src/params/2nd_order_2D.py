@@ -11,6 +11,8 @@ class Params:
     workspace_dimensions: int = 2  # dimensionality of the data
     saturate_out_of_boundaries_transitions: bool = True  # True to enforce positively invariant set
     dynamical_system_order: int = 2  # options: 1, 2
+    latent_system_dynamic_type: str = 'norm_based'  # options: standard, gaussian, norm_based
+    number_of_attractors: int = 3  # number of attractors in the system
 
     """ Latent Dynamical System parameters """
     adaptive_gains: bool = True  # adaptive gains if true

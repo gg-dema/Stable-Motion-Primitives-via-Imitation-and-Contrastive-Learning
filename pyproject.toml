@@ -5,7 +5,7 @@ description = ""
 authors = ["Rodrigo Perez Dattari <r.j.perezdattari@tudelft.nl>"]
 
 [tool.poetry.dependencies]
-python = "^3.7"
+python = "^3.7, <3.10"
 scipy = "^1.6"
 numpy = "^1.19"
 pickle4 = "^0.0.1"

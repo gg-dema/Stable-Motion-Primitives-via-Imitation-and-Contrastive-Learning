@@ -6,10 +6,12 @@ class NeuralNetwork(torch.nn.Module):
     """
     Neural Network model
     """
+
     def __init__(self, dim_state, dynamical_system_order, n_primitives, multi_motion, latent_gain_lower_limit,
-                 latent_gain_upper_limit, latent_gain, latent_space_dim, neurons_hidden_layers, adaptive_gains):
+                 latent_gain_upper_limit, latent_gain, latent_space_dim, neurons_hidden_layers, adaptive_gains,
+                 n_attractors, latent_system_dynamic_type):
         super(NeuralNetwork, self).__init__()
-        
+
         # Initialize Network parameters
         self.n_input = dim_state
         n_output = dim_state // dynamical_system_order
@@ -22,14 +24,16 @@ class NeuralNetwork(torch.nn.Module):
         self.latent_gain_lower_limit = latent_gain_lower_limit
         self.latent_gain_upper_limit = latent_gain_upper_limit
         self.adaptive_gains = adaptive_gains
+        self.n_attractors = n_attractors
+        self.latent_system_dynamic_type = latent_system_dynamic_type
 
         # Select activation function
         self.activation = torch.nn.GELU()
         self.sigmoid = torch.nn.Sigmoid()
 
         # Initialize goals list
-        self.goals_latent_space = list(np.zeros(n_primitives))
-
+        # self.goals_latent_space = list(np.zeros(n_primitives))   # ORIGINAL CODE
+        self.goals_latent_space = [list(np.zeros(n_attractors)) for _ in range(n_primitives)]
         # Primitives encodings
         self.primitives_encodings = torch.eye(n_primitives).cuda()
 
@@ -72,20 +76,28 @@ class NeuralNetwork(torch.nn.Module):
     def update_goals_latent_space(self, goals):
         """
         Maps task space goal to latent space goal
+        return latent space goal = list of list of tensor (first list == primitives, second list == attractors for each primitives)
         """
+
+        if goals.ndim == 2:
+            goals = goals.unsqueeze(0)
+
         for i in range(self.n_primitives):
-            primitive_type = torch.FloatTensor([i]).cuda()
-            input = torch.zeros([1, self.n_input])  # add zeros as velocity goal for second order DS
-            input[:, :goals[i].shape[0]] = goals[i]
-            self.goals_latent_space[i] = self.encoder(input, primitive_type)
+            for attractor_id in range(self.n_attractors):
+                primitive_type = torch.FloatTensor([i]).cuda()
+                input = torch.zeros([1, self.n_input])  # add zeros as velocity goal for second order DS
+                input[:, :goals[i][attractor_id].shape[0]] = goals[i][attractor_id]
+                self.goals_latent_space[i][attractor_id] = self.encoder(input, primitive_type)
 
     def get_goals_latent_space_batch(self, primitive_type):
         """
         Creates a batch with latent space goals computed in 'update_goals_latent_space'
         """
-        goals_latent_space_batch = torch.zeros(primitive_type.shape[0], self.latent_space_dim).cuda()
+        goals_latent_space_batch = torch.zeros(primitive_type.shape[0], self.latent_space_dim, self.n_attractors).cuda()
+
         for i in range(self.n_primitives):
-            goals_latent_space_batch[primitive_type == i] = self.goals_latent_space[i]
+            for id_attractor in range(self.n_attractors):
+                goals_latent_space_batch[primitive_type == i][:, :, id_attractor] = self.goals_latent_space[i][id_attractor]
 
         return goals_latent_space_batch
 
@@ -145,8 +157,7 @@ class NeuralNetwork(torch.nn.Module):
         Computes gains latent dynamical system f^{L}
         """
         if self.adaptive_gains:
-            input = y_t_norm
-            latent_gain_1 = self.activation(self.norm_gain_1(self.gain_nn_1(input)))
+            latent_gain_1 = self.activation(self.norm_gain_1(self.gain_nn_1(y_t_norm)))
             gains = self.sigmoid(self.gain_nn_2(latent_gain_1))
 
             # Keep gains between the set limits
@@ -159,11 +170,12 @@ class NeuralNetwork(torch.nn.Module):
         """
         Stable latent dynamical system
         """
+
         if primitive_type.ndim > 1:  # if primitive is already encoded, decode TODO: this should be modified to work with changing goal position
             primitive_type = torch.argmax(primitive_type, dim=1)  # one hot encoding to integers
 
         # Get latent goals batch
-        y_goal = self.get_goals_latent_space_batch(primitive_type)
+        y_goals = self.get_goals_latent_space_batch(primitive_type)
 
         # With bad hyperparams y value can explode when simulating the system, creating nans -> clamp to avoid issues when hyperparam tuning
         y_t = torch.clamp(y_t, min=-3e18, max=3e18)
@@ -174,7 +186,44 @@ class NeuralNetwork(torch.nn.Module):
         # Get gain latent dynamical system
         alpha = self.gains_latent_dynamical_system(y_t_norm)
 
+
+        if (self.latent_system_dynamic_type == "standard") and (self.n_attractors == 1):
+            return self.standard_latent_system(alpha, y_t, y_goals)
+        elif self.latent_system_dynamic_type == "gaussian":
+            return self.gaussian_based_latent_system(alpha, y_t, y_goals)
+        elif self.latent_system_dynamic_type == "norm_based":
+            return self.norm_based_latent_system(alpha, y_t, y_goals)
+        else:
+            raise ValueError("Latent system dynamic type not recognized OR non compatible parameters \
+                             possible error: (n_attractors > 1 and latent_system_dynamic_type == 'standard')")
+
+    def standard_latent_system(self,alpha, y_t, y_goal):
+
         # First order dynamical system in latent space
         dy_t = alpha * (y_goal.cuda() - y_t.cuda())
 
         return dy_t
+
+    def norm_based_latent_system(self, alpha, y_t, y_goals):
+        f_dot_functions = []
+        # TODO: is the limit of 0.01 necessary? could be also a hyperparameter (beta? second neural network?)
+        for attractor in range(self.n_attractors):
+            # First order dynamical system in latent space
+            dy_t = y_goals[:, :, attractor].cuda() - y_t.cuda()
+            f_dot_functions.append(
+                alpha * (dy_t / (torch.norm(dy_t) * (torch.norm(dy_t) + 0.01) ** 2))
+            )
+        return sum(f_dot_functions)
+
+    def gaussian_based_latent_system(self, alpha, y_t, y_goals):
+        f_dot_functions = []
+
+        for attractor in range(self.n_attractors):
+            # First order dynamical system in latent space
+            dy_t = y_goals[:, :, attractor].cuda() - y_t.cuda()
+            f_dot_functions.append(
+                alpha * (dy_t * torch.exp(dy_t) * y_t)
+            )
+        return sum(f_dot_functions)
+
+

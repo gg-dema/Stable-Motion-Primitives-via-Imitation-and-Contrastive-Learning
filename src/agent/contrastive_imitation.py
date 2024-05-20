@@ -27,6 +27,8 @@ class ContrastiveImitation:
         self.results_path = params.results_path
         self.interpolation_sigma = params.interpolation_sigma
         self.delta_t = 1  # used for training, can be anything
+        self.n_attractors = params.number_of_attractors
+        self.latent_system_dynamic_type = params.latent_system_dynamic_type
 
         # Parameters data processor
         self.primitive_ids = np.array(data['demonstrations primitive id'])
@@ -68,7 +70,10 @@ class ContrastiveImitation:
                                    latent_gain=params.latent_gain,
                                    latent_space_dim=params.latent_space_dim,
                                    neurons_hidden_layers=params.neurons_hidden_layers,
-                                   adaptive_gains=params.adaptive_gains).cuda()
+                                   adaptive_gains=params.adaptive_gains,
+                                   n_attractors=params.number_of_attractors,
+                                   latent_system_dynamic_type=self.latent_system_dynamic_type
+                                   ).cuda()
 
         # Initialize optimizer
         self.optimizer = torch.optim.AdamW(self.model.parameters(),
