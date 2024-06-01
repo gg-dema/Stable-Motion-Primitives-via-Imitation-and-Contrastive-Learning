@@ -45,8 +45,8 @@ class NeuralNetwork(torch.nn.Module):
         self.norm_e_1 = torch.nn.LayerNorm(neurons_hidden_layers)
         self.encoder2 = torch.nn.Linear(neurons_hidden_layers, neurons_hidden_layers)
         self.norm_e_2 = torch.nn.LayerNorm(neurons_hidden_layers)
-        self.encoder3 = torch.nn.Linear(neurons_hidden_layers, neurons_hidden_layers)
-        self.norm_e_3 = torch.nn.LayerNorm(neurons_hidden_layers)
+        self.encoder3 = torch.nn.Linear(neurons_hidden_layers, latent_input_size)
+        self.norm_e_3 = torch.nn.LayerNorm(latent_input_size)
 
         # Norm output latent space
         self.norm_latent = torch.nn.LayerNorm(latent_input_size)
@@ -197,22 +197,35 @@ class NeuralNetwork(torch.nn.Module):
             raise ValueError("Latent system dynamic type not recognized OR non compatible parameters \
                              possible error: (n_attractors > 1 and latent_system_dynamic_type == 'standard')")
 
-    def standard_latent_system(self,alpha, y_t, y_goal):
+    def standard_latent_system(self, alpha, y_t, y_goal):
 
         # First order dynamical system in latent space
-        dy_t = alpha * (y_goal.cuda() - y_t.cuda())
+        # the [:, :, 0] is used to select the first (and only) attractor
+        dy_t = alpha * (y_goal[:, :, 0].cuda() - y_t.cuda())
 
         return dy_t
 
     def norm_based_latent_system(self, alpha, y_t, y_goals):
         f_dot_functions = []
+
+
         # TODO: is the limit of 0.01 necessary? could be also a hyperparameter (beta? second neural network?)
         for attractor in range(self.n_attractors):
             # First order dynamical system in latent space
             dy_t = y_goals[:, :, attractor].cuda() - y_t.cuda()
-            f_dot_functions.append(
-                alpha * (dy_t / (torch.norm(dy_t) * (torch.norm(dy_t) + 0.01) ** 2))
-            )
+            if self.dynamical_system_order == 1:
+                f_dot_functions.append(
+                    alpha * (dy_t / (torch.norm(dy_t) * (torch.norm(dy_t) + 0.01) ** 2))
+                )
+            elif self.dynamical_system_order == 2:
+                f_dot_functions.append(
+                    alpha * (
+                            (y_goals[:, :, attractor].cuda() * dy_t / (torch.norm(dy_t)**2 + 0.01) ** 2) -
+                            ((2 * dy_t / torch.norm(dy_t)) * (2*torch.norm(dy_t) + 0.01) * 2 * dy_t )
+                        /
+                            (2 * (torch.norm(dy_t)**2 + 0.01))**4)
+                )
+
         return sum(f_dot_functions)
 
     def gaussian_based_latent_system(self, alpha, y_t, y_goals):
@@ -222,7 +235,7 @@ class NeuralNetwork(torch.nn.Module):
             # First order dynamical system in latent space
             dy_t = y_goals[:, :, attractor].cuda() - y_t.cuda()
             f_dot_functions.append(
-                alpha * (dy_t * torch.exp(dy_t) * y_t)
+                alpha * (dy_t * torch.exp(dy_t) * y_goals[:,:, attractor])
             )
         return sum(f_dot_functions)
 

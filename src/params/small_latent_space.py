@@ -4,16 +4,16 @@ from dataclasses import dataclass
 @dataclass
 class Params:
     """ General parameters """
-    dataset_name: str = 'multi_attractor'  # selects dataset, options: LASA, LAIR, optitrack, interpolation, joint_space
-    results_path: str = ('results/multi_attractor_gaussian_correct'
+    dataset_name: str = 'LASA'  # selects dataset, options: LASA, LAIR, optitrack, interpolation, joint_space
+    results_path: str = ('results/small_latent_space'
                          '/')
     multi_motion: bool = False  # true when learning multiple motions together
-    selected_primitives_ids: str = '2'  # id number from dataset_keys.py, e.g., '2' or '4,0,6'
+    selected_primitives_ids: str = '1'  # id number from dataset_keys.py, e.g., '2' or '4,0,6'
     workspace_dimensions: int = 2  # dimensionality of the data
     saturate_out_of_boundaries_transitions: bool = True  # True to enforce positively invariant set
     dynamical_system_order: int = 1  # options: 1, 2
-    latent_system_dynamic_type: str = 'gaussian'  # options: standard, gaussian, norm_based
-    number_of_attractors: int = 3  # number of attractors in the system
+    latent_system_dynamic_type: str = 'standard'  # options: standard, gaussian, norm_based
+    number_of_attractors: int = 1  # number of attractors in the system
 
     """ Latent Dynamical System parameters """
     adaptive_gains: bool = True  # adaptive gains if true
@@ -22,7 +22,7 @@ class Params:
     latent_gain: float = 0.008  # value of gains when fixed
 
     """ Neural Network """
-    latent_space_dim: int = 300  # dimensionality latent space
+    latent_space_dim: int = 10  # dimensionality latent space
     neurons_hidden_layers: int = 300  # number of neurons per layer
     batch_size: int = 250  # sampling batch size
     learning_rate: float = 0.00049  # AdamW learning rate
@@ -41,7 +41,7 @@ class Params:
     """ Training """
     train: bool = True  # true when training
     load_model: bool = False  # true to load previously trained model
-    max_iterations: int = 41000  # maximum number of training iterations
+    max_iterations: int = 10_000  # maximum number of training iterations
 
     """ Preprocessing """
     spline_sample_type: str = 'from data'  # resample from spline type, options: from data, from data resample, evenly spaced
@@ -55,9 +55,9 @@ class Params:
     evaluation_interval: int = 1000  # interval between training iterations to evaluate model
     quanti_eval: bool = True  # quantitative evaluation
     quali_eval: bool = True  # qualitative evaluation
+    latent_space_eval: bool = False  # print on latent state space
     diffeo_quanti_eval: bool = True  # quantitative evaluation of diffeomorphism mismatch
     diffeo_quali_eval: bool = True  # qualitative evaluation of diffeomorphism mismatch
-    latent_space_eval: bool = False  # print on latent state space
     ignore_n_spurious: bool = False  # when selecting best model, true to ignore amount of spurious attractors
     fixed_point_iteration_thr = 2  # distance threshold to consider that a point did not reach the goal
     density: int = 16  # density^workspace_dimension = amount of points sampled from state space for evaluation
